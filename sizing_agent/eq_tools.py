@@ -281,7 +281,7 @@ class EquationSession:
                 lines.append(f"- from {r['from']}: {ch}. {r['rationale']}")
         best = self.best()
         if best:
-            lines += ["", f"## Best design: {best['design_id']}", "", "| Knob | Value |", "|---|---|"]
+            lines += ["", f"## Lowest-power design that meets the spec (or passes most checks): {best['design_id']}", "", "| Knob | Value |", "|---|---|"]
             lines += [f"| {k} | {v:g} |" for k, v in best["knobs"].items()]
             lines += ["", "| Size | Value |", "|---|---|"]
             lines += [f"| {k} | {v:g} |" for k, v in best["sizes"].items()]

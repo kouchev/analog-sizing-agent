@@ -41,6 +41,7 @@ class ProcessParams:
 KNOBS: dict[str, tuple[float, float, float, str]] = {
     "cc_ratio": (0.25, 0.15, 1.0, "Cc / CL. Textbook minimum for 60 deg PM is 0.22"),
     "p2_ratio": (2.5, 1.5, 6.0, "Non-dominant pole p2 = gm6/CL as a multiple of GBW. 2.2 gives about 60 deg PM"),
+    "rz_ratio": (1.0, 1.0, 8.0, "Nulling resistor Rz = rz_ratio/gm6. 1 moves the RHP zero to infinity; above 1 it becomes a left-half-plane zero at 1/(Cc*(Rz-1/gm6)) that adds phase. 1+CL/Cc puts it on p2"),
     "sr_v_per_us": (60.0, 1.0, 200.0, "Slew rate target in V/us; sets the tail current I5 = SR * Cc"),
     "vin_min": (0.78, 0.3, 0.9, "Lowest input common mode the design must support [V]"),
     "vin_max": (0.9, 0.5, 1.1, "Highest input common mode the design must support [V]"),
@@ -126,9 +127,13 @@ def design(spec: Spec, k: dict[str, float], p: ProcessParams) -> EquationResult:
     s7 = s5 * i6 / i5
     steps.append(f"S7 = S5*I6/I5 = {s7:.3g}")
 
-    # 8. Nulling resistor puts the RHP zero at infinity
-    rz = 1 / gm6
-    steps.append(f"Rz = 1/gm6 = {rz / 1e3:.3g} kOhm (RHP zero moved to infinity)")
+    # 8. Nulling resistor: rz_ratio = 1 moves the RHP zero to infinity, > 1 makes it a LHP zero
+    rz = k["rz_ratio"] / gm6
+    z_lhp = 1 / (TWO_PI * cc * (rz - 1 / gm6)) if k["rz_ratio"] > 1 else math.inf
+    if k["rz_ratio"] > 1:
+        steps.append(f"Rz = rz_ratio/gm6 = {rz / 1e3:.3g} kOhm;  LHP zero z = 1/(2*pi*Cc*(Rz-1/gm6)) = {z_lhp / 1e6:.3g} MHz")
+    else:
+        steps.append(f"Rz = 1/gm6 = {rz / 1e3:.3g} kOhm (RHP zero moved to infinity)")
 
     sizes = {
         "w1": s1 * l1, "l1": l1, "w3": s3 * l3, "l3": l3, "w5": s5 * l5, "l5": l5,
@@ -150,10 +155,10 @@ def design(spec: Spec, k: dict[str, float], p: ProcessParams) -> EquationResult:
     av = (gm1 / (gds2 + gds4)) * (gm6 / (gds6 + gds7))
     gbw_pred = gm1 / (TWO_PI * cc)
     p2 = gm6 / (TWO_PI * cl)
-    pm = 90 - math.degrees(math.atan(gbw_pred / p2))
+    pm = 90 - math.degrees(math.atan(gbw_pred / p2)) + math.degrees(math.atan(gbw_pred / z_lhp))
     power = vdd * (i5 + i5 + i6)  # bias branch + tail + second stage
     steps.append(f"Av = gm1/(gds2+gds4) * gm6/(gds6+gds7) = {20 * math.log10(av):.1f} dB")
-    steps.append(f"GBW = gm1/(2*pi*Cc) = {gbw_pred / 1e6:.3g} MHz;  p2 = gm6/(2*pi*CL) = {p2 / 1e6:.3g} MHz;  PM = 90 - atan(GBW/p2) = {pm:.1f} deg")
+    steps.append(f"GBW = gm1/(2*pi*Cc) = {gbw_pred / 1e6:.3g} MHz;  p2 = gm6/(2*pi*CL) = {p2 / 1e6:.3g} MHz;  PM = 90 - atan(GBW/p2) + atan(GBW/z) = {pm:.1f} deg")
     steps.append(f"P = VDD*(Ibias + I5 + I6) = {power * 1e3:.3g} mW")
 
     predicted = {

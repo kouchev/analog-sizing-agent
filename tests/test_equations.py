@@ -24,6 +24,18 @@ def test_hand_calculation_matches():
     assert r.predicted["phase_margin_deg"] == pytest.approx(90 - math.degrees(math.atan(1 / 2.5)), abs=0.01)
 
 
+def test_rz_ratio_adds_lhp_zero_phase():
+    spec, p = Spec(), ProcessParams()
+    base = design(spec, DEFAULT_KNOBS, p)
+    lhp = design(spec, {**DEFAULT_KNOBS, "rz_ratio": 2.0}, p)
+    assert lhp.sizes["rz"] == pytest.approx(2 * base.sizes["rz"], rel=1e-3)
+    cc = 0.25 * 2e-12
+    gm6 = 2.5 * 2 * math.pi * 50e6 * 2e-12
+    z = 1 / (2 * math.pi * cc * (2 / gm6 - 1 / gm6))
+    expected = base.predicted["phase_margin_deg"] + math.degrees(math.atan(50e6 / z))
+    assert lhp.predicted["phase_margin_deg"] == pytest.approx(expected, abs=0.02)
+
+
 def test_knob_validation():
     assert validate_knobs(DEFAULT_KNOBS) == []
     errs = validate_knobs({**DEFAULT_KNOBS, "cc_ratio": 5, "bogus": 1})

@@ -106,6 +106,18 @@ Default knobs, recalibrating all parameters after every pass, SG13G2 typical cor
 - Power is 14 % low: the M7/M8 mirror ratio shifts with their different Vds.
 - The spec is not met with the default knobs (gain 46 dB). Choosing knobs that meet it is the agent's job.
 
+### Agent run on SG13G2 (Claude in the loop)
+
+Full report: [docs/runs/2026-10-15-sg13g2-agent-run.md](docs/runs/2026-10-15-sg13g2-agent-run.md). Spec 60 dB, 50 MHz, 60°, 1 mW, CL = 2 pF.
+
+| Stage | Gain dB | GBW MHz | PM deg | Power mW |
+|---|---|---|---|---|
+| D1, generic process parameters | 43.4 | 31.2 | 60.8 | 0.49 |
+| D9, best with Rz fixed at 1/gm6 | 60.1 | 42.9 | 51.9 | 0.59 |
+| **D17, with the `rz_ratio` knob (recommended)** | **60.5** | **52.5** | **68.8** | **0.445** |
+
+12 of 15 simulations, 18 calculated designs, 5 selective recalibrations. After back-annotation, power is predicted within 1–3 % and gain within 1–2.5 dB. Phase margin and GBW are not: the textbook equations miss the first-stage capacitance, the third pole from Rz and the mirror pole. Gain margin is thin; more gain needs a structural change (cascode, or separate L for M3 and M6).
+
 ## Project layout
 
 ```
@@ -120,7 +132,8 @@ sizing_agent/
 models/generic130.lib   generic BSIM4 models (not a real PDK)
 examples/sg13g2/        running on the IHP SG13G2 open PDK (tested)
 scripts/setup_sg13g2.sh installs the PDK models, OpenVAF-Reloaded and ngspice 45
-tests/                  simulator tests and a fake-client test of the loop
+docs/runs/              reports of agent runs
+tests/                  simulator, equation and SG13G2 tests, and a fake-client test of the loop
 ```
 
 ## Limitations
@@ -133,6 +146,7 @@ tests/                  simulator tests and a fake-client test of the loop
 
 - [x] Run on IHP SG13G2 (typical corner)
 - [x] Equation-first methodology with back-annotation
+- [x] Nulling-resistor knob (`rz_ratio`) with a left-half-plane zero
 - [ ] Replace the textbook equations with your own methodology
 - [ ] gm/ID lookup tables instead of square-law
 - [ ] Cadence Spectre backend
