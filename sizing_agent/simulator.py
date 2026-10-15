@@ -27,13 +27,15 @@ def _num(text: str) -> float | None:
         return None  # e.g. a failed .meas leaves the variable undefined
 
 
-def run_ngspice(net: str, timeout_s: float = 60.0) -> str:
-    exe = shutil.which("ngspice")
+def run_ngspice(net: str, exe_name: str = "ngspice", spiceinit: str = "", timeout_s: float = 60.0) -> str:
+    exe = shutil.which(exe_name)
     if exe is None:
-        raise SimulationError("ngspice not found on PATH. Install it (e.g. 'apt install ngspice' or 'brew install ngspice').")
+        raise SimulationError(f"'{exe_name}' not found. Install ngspice (e.g. 'apt install ngspice') or set NGSPICE to its path.")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "ota.cir"
         path.write_text(net)
+        if spiceinit:
+            (Path(tmp) / ".spiceinit").write_text(spiceinit + "\n")
         try:
             proc = subprocess.run([exe, "-b", str(path)], capture_output=True, text=True, timeout=timeout_s, cwd=tmp)
         except subprocess.TimeoutExpired as exc:
@@ -43,7 +45,7 @@ def run_ngspice(net: str, timeout_s: float = 60.0) -> str:
 
 def simulate(params: dict[str, float], spec: Spec, proc: Process) -> dict:
     """Simulate one design point. Returns metrics, spec check and per-device operating points."""
-    out = run_ngspice(netlist(params, spec, proc))
+    out = run_ngspice(netlist(params, spec, proc), proc.ngspice, proc.spiceinit)
     res = {k: _num(v) for k, v in _RESULT.findall(out)}
     if res.get("power_w") is None:
         tail = "\n".join(out.strip().splitlines()[-15:])
@@ -62,6 +64,7 @@ def simulate(params: dict[str, float], spec: Spec, proc: Process) -> dict:
         devices[m] = {
             "id_uA": _r(abs(idd) * 1e6 if idd is not None else None),
             "gm_uS": _r(gm * 1e6 if gm is not None else None),
+            "gds_uS": _r(abs(op["gds"]) * 1e6 if op.get("gds") is not None else None),
             "gm_over_id": _r(abs(gm / idd) if gm and idd else None),
             "vgs_V": _r(op.get("vgs")),
             "vth_V": _r(op.get("vth")),

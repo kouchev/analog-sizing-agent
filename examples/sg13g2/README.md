@@ -1,25 +1,33 @@
-# Moving to IHP SG13G2
+# Running on IHP SG13G2
 
-The starter uses generic BSIM4 models (`models/generic130.lib`) so it runs anywhere with a stock ngspice. To size on a real open-source process, point the `Process` at the IHP SG13G2 PDK.
+Tested with IHP-Open-PDK (commit 5e6d592, Sept 2026), OpenVAF-Reloaded built with LLVM 18, and ngspice 45.2.
 
-> Not yet tested in this repo. Treat these steps as the plan for the next milestone.
+## Setup
 
-1. Install the PDK: clone [IHP-Open-PDK](https://github.com/IHP-GmbH/IHP-Open-PDK) and set `PDK_ROOT`.
-2. SG13G2 MOSFETs use PSP models compiled with OpenVAF. Make sure ngspice loads the OSDI file, e.g. in `~/.spiceinit`:
-   ```
-   osdi <PDK_ROOT>/ihp-sg13g2/libs.tech/ngspice/osdi/psp103_nqs.osdi
-   ```
-3. The devices are subcircuits (`sg13_lv_nmos`, `sg13_lv_pmos`), so the instance prefix changes from `M` to `X`, and operating-point names change accordingly (for example `@n.x1.nsg13_lv_nmos[gm]`). Update `netlist()` and the `OP` parsing in `simulator.py`.
-4. Create a process object:
-   ```python
-   Process(
-       name="IHP SG13G2 low-voltage MOS, typical corner",
-       include=".lib <PDK_ROOT>/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib mos_tt",
-       nmos="sg13_lv_nmos",
-       pmos="sg13_lv_pmos",
-       lmin_um=0.13,
-   )
-   ```
-5. Re-run `python -m sizing_agent --check`, then the agent.
+```bash
+./scripts/setup_sg13g2.sh            # installs into ~/eda; takes 10-20 minutes
+export PDK_ROOT=~/eda/IHP-Open-PDK
+export NGSPICE=~/eda/ngspice/bin/ngspice
+pytest -q                             # the two SG13G2 tests now run instead of being skipped
+```
 
-Good follow-ups: corner simulations (`mos_ff`, `mos_ss`) as a second tool, and Monte Carlo for offset.
+Why each piece is needed:
+
+- **PSP103 as OSDI.** SG13G2 MOSFETs use the PSP103 Verilog-A model. OpenVAF-Reloaded compiles it to `psp103.osdi`, which ngspice loads through `.spiceinit` (the simulator wrapper writes that file for you).
+- **ngspice 45 or newer.** OpenVAF-Reloaded writes OSDI v0.4. Ubuntu's ngspice 42 only loads v0.3 and fails with "NGSPICE only supports OSDI v0.3".
+- The warnings about `pspnqs103va` refer to the RF variant of the model and can be ignored.
+
+## Use
+
+```bash
+python -m sizing_agent --process sg13g2 --check          # scripted equations/simulate/recalibrate loop, no API
+python -m sizing_agent --process sg13g2                  # the agent with the equation-first methodology
+python -m sizing_agent --process sg13g2 --mode free      # the agent picks sizes directly
+```
+
+## Things the PDK taught us
+
+- **Wide single fingers are invalid.** A 69 µm single-finger PMOS reports |Vth| = 0.61 V instead of 0.36 V. The netlist now splits devices into fingers of at most 5 µm (`ng=`), as a layout would.
+  Before this fix, the oversized threshold of a single-finger M6 needed a much larger Vsg than M4, pulled the first-stage output down and put M2 in triode.
+- **Short-channel |Vth| shift is modest.** PMOS |Vth| is 0.364 V at L = 0.5 µm, 0.383 V at 0.25 µm and 0.412 V at 0.13 µm (W = 5 µm). The procedure still assumes M6 and M4 have the same Vgs, so `l6_um = l3_um` is the safe default.
+- **Back-annotation must ignore devices in triode.** Their gds is huge and corrupts λ.

@@ -38,7 +38,10 @@ SIMULATE_TOOL = {
 
 
 class SizingSession:
-    """Owns the simulation budget and records every design point the agent tries."""
+    """Free sizing: the agent picks transistor sizes directly and simulates them."""
+
+    tools = [SIMULATE_TOOL]
+    first_message = "Size the OTA to meet the spec. Start with a hand-calculated first guess."
 
     def __init__(self, spec: Spec, proc: Process, max_sims: int, log_dir: Path):
         self.spec = spec
@@ -86,6 +89,19 @@ class SizingSession:
             **result,
         }
         return json.dumps(payload, indent=1), False
+
+    def system_prompt(self) -> str:
+        from .agent import build_system_prompt
+        return build_system_prompt(self.spec, self.proc, self.max_sims)
+
+    def console_line(self, name: str, tool_input: dict, content: str, is_error: bool) -> str:
+        if is_error:
+            return f"[tool error] {content.splitlines()[0]}"
+        last = self.history[-1]
+        m = last["metrics"]
+        status = "MEETS SPEC" if last["meets_spec"] else "fails: " + ", ".join(k for k, v in last["spec_check"].items() if not v)
+        return (f"[sim {self.sims_used}/{self.max_sims}] gain {m['gain_db']} dB | GBW {m['gbw_mhz']} MHz | "
+                f"PM {m['phase_margin_deg']} deg | P {m['power_mw']} mW | {status}")
 
     def best(self) -> dict | None:
         """Lowest-power design that meets everything; otherwise the one passing the most checks."""

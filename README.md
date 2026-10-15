@@ -10,6 +10,13 @@ spec ──► Claude (gm/Id reasoning) ──► simulate_ota(sizes) ──► 
 
 The agent loop is written by hand in `sizing_agent/agent.py`, without a framework, so every step is visible.
 
+Two modes:
+
+- **`--mode equations` (default): equation-first methodology.** The agent chooses design knobs; hand-analysis equations (`sizing_agent/equations.py`) compute the sizes; the simulator only accepts designs that came from the equations; mismatches are fixed by back-annotating process parameters from the simulated operating points or by changing knobs. See [the methodology](#equation-first-methodology).
+- **`--mode free`:** the agent picks transistor sizes directly.
+
+Two processes: `--process generic` (built-in BSIM4 cards, runs with any ngspice) and `--process sg13g2` (IHP open PDK, see [examples/sg13g2](examples/sg13g2/README.md)).
+
 ## Quick start
 
 ```bash
@@ -20,7 +27,7 @@ sudo apt install ngspice        # macOS: brew install ngspice
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 3. Check the simulator without any API call
+# 3. Check without any API call: scripted equations -> simulate -> recalibrate loop
 python -m sizing_agent --check
 pytest -q
 
@@ -45,7 +52,9 @@ python -m sizing_agent --gain-db 65 --gbw-mhz 80 --pm-deg 60 --power-mw 0.8 --cl
 | `--pm-deg` | 60 | Minimum phase margin |
 | `--power-mw` | 1.0 | Maximum power |
 | `--cl-pf` | 2.0 | Load capacitance |
-| `--max-sims` | 25 | Simulation budget (guardrail) |
+| `--mode` | equations | `equations` (methodology) or `free` |
+| `--process` | generic | `generic` or `sg13g2` |
+| `--max-sims` | 15 | Simulation budget (guardrail) |
 | `--effort` | high | Claude reasoning effort: low, medium, high, xhigh, max |
 
 ## Circuit
@@ -61,29 +70,72 @@ python -m sizing_agent --gain-db 65 --gbw-mhz 80 --pm-deg 60 --power-mw 0.8 --cl
 
 The testbench closes the loop at DC through a very large inductor, so the output is biased at the input common mode while the AC analysis sees the open loop. Saturation is checked as |Vds| > |Vdsat| + 50 mV.
 
+## Equation-first methodology
+
+```
+knobs (Claude) ──► design_from_equations ──► design_id + sizes + predicted metrics
+                                                  │
+                                       simulate_design(design_id)   (ngspice)
+                                                  │
+                 prediction vs simulation (% error) + process parameters extracted from operating points
+                                                  │
+        recalibrate_process (values from simulation only)   or   new knobs   ──► back to the equations
+```
+
+| Tool | Does | Guardrail |
+|---|---|---|
+| `design_from_equations` | Runs the equations with Claude's knobs and the current process parameters | Knob ranges; no simulation cost |
+| `simulate_design` | Simulates a calculated design; returns metrics, operating points, prediction errors, extracted parameters | Only accepts `design_id`s from the equations; uses the budget |
+| `recalibrate_process` | Replaces chosen process parameters with values extracted from a simulation | Values come from the simulation, never from Claude; limited count |
+
+The equations in `sizing_agent/equations.py` are the textbook square-law procedure (Allen & Holberg). They are a stand-in: replace `design()` and `extract()` with your own methodology and the rest of the loop stays the same.
+
+### First results without the LLM (`--check`)
+
+Default knobs, recalibrating all parameters after every pass, SG13G2 typical corner:
+
+| Pass | Gain dB pred / sim | GBW MHz pred / sim | PM deg pred / sim | Power mW pred / sim |
+|---|---|---|---|---|
+| 1 | 64.8 / 40.5 | 50.0 / 31.9 | 68.2 / 71.9 | 0.355 / 0.413 |
+| 2 | 52.0 / 46.7 | 50.0 / 37.0 | 68.2 / 68.2 | 0.315 / 0.362 |
+| 3 | 46.6 / 46.5 | 50.0 / 37.5 | 68.2 / 68.1 | 0.316 / 0.366 |
+| 4 | 46.4 / 46.4 | 50.0 / 37.6 | 68.2 / 68.1 | 0.316 / 0.366 |
+
+- Back-annotation converges in two passes: gain and phase margin are then predicted within 0.5 %.
+- GBW stays 33 % optimistic although simulated gm1 is within 4 % of target. The gap is the capacitance at the first-stage output (Cgs of M6), which GBW = gm1/Cc ignores. Recalibration cannot fix a missing term; better equations or different knobs must.
+- Power is 14 % low: the M7/M8 mirror ratio shifts with their different Vds.
+- The spec is not met with the default knobs (gain 46 dB). Choosing knobs that meet it is the agent's job.
+
 ## Project layout
 
 ```
 sizing_agent/
-  circuit.py     parameters and bounds, spec, netlist template
+  circuit.py     parameters and bounds, spec, netlist template, process definitions (generic, SG13G2)
+  equations.py   hand-analysis design equations and back-annotation (replace with your own)
+  eq_tools.py    equation-first tools: design_from_equations, simulate_design, recalibrate_process
   simulator.py   runs ngspice, parses metrics and operating points
-  tools.py       tool schema, simulation budget, history, best design
+  tools.py       free-mode tool: simulate_ota
   agent.py       the hand-written agent loop (Claude API, tool use)
   __main__.py    command line and run summary
 models/generic130.lib   generic BSIM4 models (not a real PDK)
-examples/sg13g2/        how to move to the IHP SG13G2 open PDK
+examples/sg13g2/        running on the IHP SG13G2 open PDK (tested)
+scripts/setup_sg13g2.sh installs the PDK models, OpenVAF-Reloaded and ngspice 45
 tests/                  simulator tests and a fake-client test of the loop
 ```
 
 ## Limitations
 
-- **Models:** `generic130.lib` is a generic BSIM4 card, useful for learning and trends but not for real design numbers. See `examples/sg13g2/README.md` for moving to IHP SG13G2.
+- **Models:** `generic130.lib` is a generic BSIM4 card, useful for learning and trends only. Use `--process sg13g2` for a real (open) process.
 - **Coverage:** only typical conditions are simulated: no corners, Monte Carlo, noise, slew rate, output swing or CMRR yet.
 - **Cost:** each agent run makes one Claude API call per step. Check token usage at the end of the run.
 
 ## Roadmap
 
-- [ ] Run on IHP SG13G2 (typical corner)
+- [x] Run on IHP SG13G2 (typical corner)
+- [x] Equation-first methodology with back-annotation
+- [ ] Replace the textbook equations with your own methodology
+- [ ] gm/ID lookup tables instead of square-law
+- [ ] Cadence Spectre backend
 - [ ] Corner and Monte Carlo tool
 - [ ] Slew rate, output swing and noise in the spec
 - [ ] Compare with Bayesian optimization (Optuna) on the same spec: simulations needed and final power

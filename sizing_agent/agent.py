@@ -8,7 +8,6 @@ from __future__ import annotations
 import anthropic
 
 from .circuit import PARAMS, Process, Spec
-from .tools import SIMULATE_TOOL, SizingSession
 
 MODEL = "claude-opus-5-5"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -40,18 +39,22 @@ def build_system_prompt(spec: Spec, proc: Process, max_sims: int) -> str:
 
 
 def run_agent(
-    session: SizingSession,
+    session,
     client: anthropic.Anthropic | None = None,
     model: str = MODEL,
     effort: str = "high",
     max_turns: int = 40,
     verbose: bool = True,
 ) -> str:
-    """Run the loop until Claude gives a final answer. Returns the final text."""
+    """Run the loop until Claude gives a final answer. Returns the final text.
+
+    `session` supplies the tools and executes them: SizingSession (free sizing) or
+    EquationSession (equation-first methodology).
+    """
     client = client or anthropic.Anthropic()
     say = print if verbose else (lambda *a, **k: None)
-    system = build_system_prompt(session.spec, session.proc, session.max_sims)
-    messages: list[dict] = [{"role": "user", "content": "Size the OTA to meet the spec. Start with a hand-calculated first guess."}]
+    system = session.system_prompt()
+    messages: list[dict] = [{"role": "user", "content": session.first_message}]
     session.log("start", model=model, effort=effort, system=system)
     usage = {"input_tokens": 0, "output_tokens": 0}
     final_text = ""
@@ -61,7 +64,7 @@ def run_agent(
             model=model,
             max_tokens=16000,
             system=system,
-            tools=[SIMULATE_TOOL],
+            tools=session.tools,
             messages=messages,
             thinking={"type": "adaptive", "display": "summarized"},  # show a summary of the reasoning
             output_config={"effort": effort},
@@ -100,14 +103,7 @@ def run_agent(
             if block.type != "tool_use":
                 continue
             content, is_error = session.run_tool(block.name, block.input)
-            last = session.history[-1] if session.history and not is_error else None
-            if last:
-                m = last["metrics"]
-                say(f"\n[sim {session.sims_used}/{session.max_sims}] gain {m['gain_db']} dB | GBW {m['gbw_mhz']} MHz | "
-                    f"PM {m['phase_margin_deg']} deg | P {m['power_mw']} mW | "
-                    f"{'MEETS SPEC' if last['meets_spec'] else 'fails: ' + ', '.join(k for k, v in last['spec_check'].items() if not v)}")
-            else:
-                say(f"\n[tool error] {content.splitlines()[0]}")
+            say("\n" + session.console_line(block.name, block.input, content, is_error))
             tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": content, "is_error": is_error})
         messages.append({"role": "user", "content": tool_results})
     else:
