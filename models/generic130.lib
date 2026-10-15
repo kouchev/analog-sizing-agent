@@ -1,0 +1,5 @@
+* Generic 130 nm-class BSIM4 models (NOT a real PDK).
+* Good enough to learn agent loops and sizing trends; switch to IHP SG13G2
+* (see examples/sg13g2/README.md) for results you can trust.
+.model nch nmos level=54 version=4.8 vth0=0.4 toxe=2.5n
+.model pch pmos level=54 version=4.8 vth0=-0.4 toxe=2.5n
