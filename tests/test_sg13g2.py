@@ -1,16 +1,27 @@
-"""Runs only when the SG13G2 setup is present (PDK_ROOT and NGSPICE pointing at ngspice >= 45)."""
+"""Runs only when the SG13G2 setup is present: PDK_ROOT/NGSPICE, or the repo's .tools from scripts/bootstrap.sh."""
 
-import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from sizing_agent.circuit import Spec, sg13g2
+from sizing_agent.circuit import Spec, default_ngspice, default_pdk_root, sg13g2
 from sizing_agent.equations import DEFAULT_KNOBS, ProcessParams, design
 from sizing_agent.simulator import simulate
 
-osdi = Path(os.environ.get("PDK_ROOT", "/nonexistent")) / "ihp-sg13g2/libs.tech/ngspice/osdi/psp103.osdi"
-pytestmark = pytest.mark.skipif(not osdi.exists() or "NGSPICE" not in os.environ, reason="SG13G2 setup not found")
+
+
+def _setup_found() -> bool:
+    osdi = Path(default_pdk_root()) / "ihp-sg13g2/libs.tech/ngspice/osdi/psp103.osdi"
+    exe = shutil.which(default_ngspice())
+    if not osdi.exists() or exe is None:
+        return False
+    out = subprocess.run([exe, "-v"], capture_output=True, text=True).stdout
+    return "ngspice-4" in out and not any(f"ngspice-{v}" in out for v in ("40", "41", "42", "43"))
+
+
+pytestmark = pytest.mark.skipif(not _setup_found(), reason="SG13G2 setup not found (run scripts/bootstrap.sh)")
 
 
 def test_sg13g2_equation_design_simulates_in_saturation():

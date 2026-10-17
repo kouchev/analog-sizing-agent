@@ -8,6 +8,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+# Toolchain built by scripts/bootstrap.sh (used when PDK_ROOT / NGSPICE are not set)
+TOOLS_DIR = Path(__file__).resolve().parent.parent / ".tools"
+
+
+def default_ngspice() -> str:
+    if os.environ.get("NGSPICE"):
+        return os.environ["NGSPICE"]
+    local = TOOLS_DIR / "ngspice" / "bin" / "ngspice"
+    return str(local) if local.exists() else "ngspice"
+
+
+def default_pdk_root() -> str:
+    return os.environ.get("PDK_ROOT") or str(TOOLS_DIR / "IHP-Open-PDK")
 
 # name: (unit, min, max, description)
 PARAMS: dict[str, tuple[str, float, float, str]] = {
@@ -77,7 +90,7 @@ class Process:
     op_names: dict = field(default_factory=lambda: dict(BSIM_OP_NAMES))
     # Written to .spiceinit next to the netlist (e.g. to load OSDI device models)
     spiceinit: str = ""
-    ngspice: str = field(default_factory=lambda: os.environ.get("NGSPICE", "ngspice"))
+    ngspice: str = field(default_factory=default_ngspice)
     # Split wide devices into fingers (ng) no wider than this; None = single finger.
     max_finger_um: float | None = None
 
@@ -103,9 +116,9 @@ def generic130() -> Process:
 def sg13g2(pdk_root: str | None = None, corner: str = "mos_tt") -> Process:
     """IHP SG13G2 low-voltage MOS (open PDK). Needs ngspice >= 44 with the PSP103 OSDI model.
 
-    pdk_root: folder that contains ihp-sg13g2/ (defaults to $PDK_ROOT).
+    pdk_root: folder that contains ihp-sg13g2/ (defaults to $PDK_ROOT, then the repo's .tools/IHP-Open-PDK).
     """
-    root = Path(pdk_root or os.environ.get("PDK_ROOT", "")) / "ihp-sg13g2" / "libs.tech"
+    root = Path(pdk_root or default_pdk_root()) / "ihp-sg13g2" / "libs.tech"
     osdi = Path(os.environ.get("SG13G2_OSDI", root / "ngspice" / "osdi" / "psp103.osdi"))
     lib = root / "ngspice" / "models" / "cornerMOSlv.lib"
     return Process(

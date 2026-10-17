@@ -5,11 +5,12 @@ Tested with IHP-Open-PDK (commit 5e6d592, Sept 2026), OpenVAF-Reloaded built wit
 ## Setup
 
 ```bash
-./scripts/setup_sg13g2.sh            # installs into ~/eda; takes 10-20 minutes
-export PDK_ROOT=~/eda/IHP-Open-PDK
-export NGSPICE=~/eda/ngspice/bin/ngspice
-pytest -q                             # the two SG13G2 tests now run instead of being skipped
+./scripts/bootstrap.sh               # venv + toolchain into .tools/; 15-20 minutes the first time
+source .venv/bin/activate            # sets PDK_ROOT and NGSPICE
+pytest -q                            # the two SG13G2 tests now run instead of being skipped
 ```
+
+To install the toolchain somewhere else: `PREFIX=~/eda ./scripts/setup_sg13g2.sh`, then set `PDK_ROOT=~/eda/IHP-Open-PDK` and `NGSPICE=~/eda/ngspice/bin/ngspice`.
 
 Why each piece is needed:
 

@@ -20,21 +20,23 @@ Two processes: `--process generic` (built-in BSIM4 cards, runs with any ngspice)
 ## Quick start
 
 ```bash
-# 1. ngspice (version 38 or later)
-sudo apt install ngspice        # macOS: brew install ngspice
+git clone https://github.com/kouchev/analog-sizing-agent
+cd analog-sizing-agent
+./scripts/bootstrap.sh            # .venv + SG13G2 toolchain in .tools/ (Linux; first run 15-20 min)
+source .venv/bin/activate         # also sets PDK_ROOT and NGSPICE
 
-# 2. Python package
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-# 3. Check without any API call: scripted equations -> simulate -> recalibrate loop
-python -m sizing_agent --check
-pytest -q
-
-# 4. Run the agent
-export ANTHROPIC_API_KEY=...    # from console.anthropic.com
-python -m sizing_agent
+python -m sizing_agent --process sg13g2 --check   # scripted loop, no API key needed
+export ANTHROPIC_API_KEY=...                      # from console.anthropic.com
+python -m sizing_agent --process sg13g2           # the agent
 ```
+
+`bootstrap.sh` creates `.venv` with the package and pytest, downloads the IHP SG13G2 models, builds OpenVAF-Reloaded and ngspice 45 into `.tools/` (git-ignored), compiles the PSP103 transistor model, and finishes by running the tests. Running it again skips everything that is already built. Without activating the venv, the code still finds `.tools/` on its own.
+
+Only the generic models, no SG13G2 build: `./scripts/bootstrap.sh --python` (needs `ngspice` on PATH, e.g. `sudo apt install ngspice`).
+
+The build needs Ubuntu/Debian (it installs LLVM 18, autotools and bison with apt). On macOS or another distribution, install those yourself first.
+
+In Claude Code cloud sessions, `.claude/hooks/session-start.sh` runs the bootstrap automatically when a session starts.
 
 Every run writes `runs/<timestamp>/log.jsonl` (each tool call and result) and `runs/<timestamp>/summary.md` (best design, trajectory table and the agent's final answer).
 
@@ -131,7 +133,9 @@ sizing_agent/
   __main__.py    command line and run summary
 models/generic130.lib   generic BSIM4 models (not a real PDK)
 examples/sg13g2/        running on the IHP SG13G2 open PDK (tested)
-scripts/setup_sg13g2.sh installs the PDK models, OpenVAF-Reloaded and ngspice 45
+scripts/bootstrap.sh    one-step setup: .venv + SG13G2 toolchain in .tools/
+scripts/setup_sg13g2.sh the toolchain part (PDK models, OpenVAF-Reloaded, ngspice 45)
+.claude/hooks/          session-start hook for Claude Code cloud sessions
 docs/runs/              reports of agent runs
 tests/                  simulator, equation and SG13G2 tests, and a fake-client test of the loop
 ```
