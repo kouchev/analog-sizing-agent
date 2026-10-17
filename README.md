@@ -118,7 +118,19 @@ Full report: [docs/runs/2026-10-15-sg13g2-agent-run.md](docs/runs/2026-10-15-sg1
 | D9, best with Rz fixed at 1/gm6 | 60.1 | 42.9 | 51.9 | 0.59 |
 | **D17, with the `rz_ratio` knob (recommended)** | **60.5** | **52.5** | **68.8** | **0.445** |
 
+![Schematic of D17](docs/schematic_D17.png)
+
 12 of 15 simulations, 18 calculated designs, 5 selective recalibrations. After back-annotation, power is predicted within 1–3 % and gain within 1–2.5 dB. Phase margin and GBW are not: the textbook equations miss the first-stage capacitance, the third pole from Rz and the mirror pole. Gain margin is thin; more gain needs a structural change (cascode, or separate L for M3 and M6).
+
+### Schematic
+
+`scripts/draw_schematic.py` draws the OTA with the sizes and operating points of a design as an SVG, using [schemdraw](https://schemdraw.readthedocs.io). Open the SVG in [Inkscape](https://inkscape.org) to edit it, or export it there:
+
+```bash
+pip install -e ".[draw]"
+python scripts/draw_schematic.py docs/runs/2026-10-15-sg13g2-D17.json -o docs/schematic_D17.svg
+inkscape docs/schematic_D17.svg --export-type=pdf --export-filename=docs/schematic_D17.pdf
+```
 
 ## Project layout
 
@@ -133,6 +145,7 @@ sizing_agent/
   __main__.py    command line and run summary
 models/generic130.lib   generic BSIM4 models (not a real PDK)
 examples/sg13g2/        running on the IHP SG13G2 open PDK (tested)
+scripts/draw_schematic.py  schematic with sizes as SVG (edit or export with Inkscape)
 scripts/bootstrap.sh    one-step setup: .venv + SG13G2 toolchain in .tools/
 scripts/setup_sg13g2.sh the toolchain part (PDK models, OpenVAF-Reloaded, ngspice 45)
 .claude/hooks/          session-start hook for Claude Code cloud sessions

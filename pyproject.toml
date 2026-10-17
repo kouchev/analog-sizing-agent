@@ -9,6 +9,7 @@ dependencies = ["anthropic>=1.14"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+draw = ["schemdraw>=0.19"]
 
 [project.scripts]
 sizing-agent = "sizing_agent.__main__:main"

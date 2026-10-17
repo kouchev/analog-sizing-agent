@@ -1,0 +1,96 @@
+{
+ "knobs": {
+  "sr_v_per_us": 50,
+  "vin_min": 0.78,
+  "vin_max": 0.95,
+  "l1_um": 3.5,
+  "l3_um": 0.7,
+  "l5_um": 3.5,
+  "l6_um": 0.7,
+  "cc_ratio": 1.0,
+  "p2_ratio": 3.5,
+  "rz_ratio": 3.5
+ },
+ "sizes": {
+  "w1": 50.74,
+  "l1": 3.5,
+  "w3": 41.56,
+  "l3": 0.7,
+  "w5": 19.39,
+  "l5": 3.5,
+  "w6": 139.5,
+  "l6": 0.7,
+  "w7": 32.53,
+  "ibias": 100.0,
+  "cc": 2.0,
+  "rz": 1.592
+ },
+ "predicted": {
+  "gain_db": 62.03,
+  "gbw_mhz": 50.0,
+  "phase_margin_deg": 109.59,
+  "power_mw": 0.4414
+ },
+ "metrics": {
+  "gain_db": 60.52,
+  "gbw_mhz": 52.47,
+  "phase_margin_deg": 68.79,
+  "power_mw": 0.4451,
+  "vout_dc_V": 0.7998
+ },
+ "devices": {
+  "m1": {
+   "id_uA": 49.02,
+   "gm_over_id": 12.2,
+   "region": "saturation"
+  },
+  "m2": {
+   "id_uA": 49.05,
+   "gm_over_id": 12.2,
+   "region": "saturation"
+  },
+  "m3": {
+   "id_uA": 49.02,
+   "gm_over_id": 12.13,
+   "region": "saturation"
+  },
+  "m4": {
+   "id_uA": 49.05,
+   "gm_over_id": 12.13,
+   "region": "saturation"
+  },
+  "m5": {
+   "id_uA": 98.08,
+   "gm_over_id": 6.077,
+   "region": "saturation"
+  },
+  "m6": {
+   "id_uA": 172.9,
+   "gm_over_id": 11.83,
+   "region": "saturation"
+  },
+  "m7": {
+   "id_uA": 172.9,
+   "gm_over_id": 5.989,
+   "region": "saturation"
+  },
+  "m8": {
+   "id_uA": 100.0,
+   "gm_over_id": 6.047,
+   "region": "saturation"
+  }
+ },
+ "fingers": {
+  "m1": 11,
+  "m2": 11,
+  "m3": 9,
+  "m4": 9,
+  "m5": 4,
+  "m8": 4,
+  "m6": 28,
+  "m7": 7
+ },
+ "process": "IHP SG13G2 low-voltage MOS (mos_tt)",
+ "design_id": "D17",
+ "source": "docs/runs/2026-10-15-sg13g2-agent-run.md"
+}

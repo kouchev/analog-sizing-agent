@@ -13,9 +13,9 @@ if [ ! -x .venv/bin/python ]; then
   log "creating .venv"
   "$PY" -m venv .venv || { log "python venv module missing: install python3-venv"; exit 1; }
 fi
-log "installing the package and test tools into .venv"
+log "installing the package, test and drawing tools into .venv"
 .venv/bin/python -m pip install -q --upgrade pip
-.venv/bin/python -m pip install -q -e ".[dev]"
+.venv/bin/python -m pip install -q -e ".[dev,draw]"
 
 if [ "${1:-}" = "--python" ]; then
   log "done (Python only). Activate with: source .venv/bin/activate"
